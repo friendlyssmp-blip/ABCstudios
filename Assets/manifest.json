@@ -1,0 +1,16 @@
+{
+  "name": "ABCDdeveloppement Assets",
+  "version": 1,
+  "folders": {
+    "images": [
+      "images/banana.png",
+      "images/orange.png",
+      "images/apple.png"
+    ],
+    "sounds": [
+      "sounds/spring.mp3",
+      "sounds/police_siren.mp3",
+      "sounds/eating_crock.mp3"
+    ]
+  }
+}

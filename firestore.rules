@@ -1,0 +1,73 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Shared Helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isSignedIn() && request.auth.uid == resource.data.ownerId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // User Profiles
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId) && 
+                      request.resource.data.keys().hasAll(['email', 'createdAt']) &&
+                      request.resource.data.email is string;
+      allow update: if isOwner(userId) && 
+                      request.resource.data.email == resource.data.email &&
+                      request.resource.data.createdAt == resource.data.createdAt;
+    }
+
+    // Projects
+    match /projects/{projectId} {
+      function isValidProject(data) {
+        return data.name is string && data.name.size() <= 100 &&
+               data.ownerId == request.auth.uid &&
+               data.data is map &&
+               (data.createdAt == request.time || data.createdAt is string); // Allow string fallback if not using serverTimestamp
+      }
+
+      allow get: if isSignedIn() && (resource.data.isPublic == true || isDocOwner());
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidProject(request.resource.data);
+      allow update: if isDocOwner() && 
+                    request.resource.data.ownerId == resource.data.ownerId &&
+                    (request.resource.data.updatedAt == request.time || request.resource.data.updatedAt is string);
+      allow delete: if isDocOwner();
+    }
+
+    // Assets
+    match /assets/{assetId} {
+      function isValidAsset(data) {
+        return data.name is string && data.name.size() <= 100 &&
+               data.url is string && data.url.size() <= 2048 &&
+               data.type in ['image', 'sound', 'script'] &&
+               data.ownerId == request.auth.uid;
+      }
+
+      allow get: if isSignedIn();
+      allow list: if isSignedIn() && resource.data.ownerId == request.auth.uid;
+      allow create: if isSignedIn() && isValidAsset(request.resource.data);
+      allow update: if isDocOwner() && 
+                    request.resource.data.ownerId == resource.data.ownerId;
+      allow delete: if isDocOwner();
+    }
+  }
+}
